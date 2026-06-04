@@ -1,5 +1,5 @@
 const BASE_BUILDINGS = [
-    { id: 'cursor', name: 'Cursor', baseCost: 15, cost: 16, count: 0, production: 0.1 },
+    { id: 'cursor', name: 'Cursor', baseCost: 15, cost: 15, count: 0, production: 0.1 },
     { id: 'grandma', name: 'Grandma', baseCost: 100, cost: 100, count: 0, production: 1 },
     { id: 'farm', name: 'Farm', baseCost: 1100, cost: 1100, count: 0, production: 8 },
     { id: 'mine', name: 'Mine', baseCost: 12000, cost: 12000, count: 0, production: 47 },

@@ -91,6 +91,10 @@ const SAVE_INTERVAL_MS = 2000;
 const CLICK_ANIMATION_MS = 80;
 const UPGRADES_PAGE_SIZE = 50;
 const ACHIEVEMENTS_PAGE_SIZE = 50;
+const HOLD_DELAY_MS = 250;
+const HOLD_REPEAT_MS = 120;
+let holdBuyTimer = null;
+let holdBuyInterval = null;
 
 function init() {
     loadGame();
@@ -576,6 +580,40 @@ function startAutoProduction() {
     setInterval(saveGame, SAVE_INTERVAL_MS);
 }
 
+function stopHoldBuy(event) {
+    if (event && event.target && event.target.releasePointerCapture && event.pointerId != null) {
+        try {
+            event.target.releasePointerCapture(event.pointerId);
+        } catch (error) {
+            // ignore capture release errors for removed elements
+        }
+    }
+
+    if (holdBuyTimer) {
+        clearTimeout(holdBuyTimer);
+        holdBuyTimer = null;
+    }
+    if (holdBuyInterval) {
+        clearInterval(holdBuyInterval);
+        holdBuyInterval = null;
+    }
+}
+
+function startHoldBuy(building, card, pointerId) {
+    stopHoldBuy();
+    buyBuilding(building, { renderBuildings: false, card });
+
+    holdBuyTimer = setTimeout(() => {
+        holdBuyInterval = setInterval(() => {
+            if (gameState.cookies < building.cost) {
+                stopHoldBuy();
+                return;
+            }
+            buyBuilding(building, { renderBuildings: false, card });
+        }, HOLD_REPEAT_MS);
+    }, HOLD_DELAY_MS);
+}
+
 function renderBuildings() {
     DOM.buildingsContainer.innerHTML = '';
 
@@ -595,17 +633,44 @@ function renderBuildings() {
         `;
 
         if (canAfford) {
-            card.addEventListener('click', () => buyBuilding(building));
+            card.addEventListener('pointerdown', event => {
+                if (event.button !== 0) return;
+                event.preventDefault();
+                if (card.setPointerCapture) {
+                    card.setPointerCapture(event.pointerId);
+                }
+                startHoldBuy(building, card, event.pointerId);
+            });
+            card.addEventListener('pointerup', event => stopHoldBuy(event));
+            card.addEventListener('pointercancel', event => stopHoldBuy(event));
+            card.addEventListener('pointerleave', event => stopHoldBuy(event));
         }
 
         DOM.buildingsContainer.appendChild(card);
     });
 }
 
-function buyBuilding(building) {
+function updateBuildingCard(card, building) {
+    const canAfford = gameState.cookies >= building.cost;
+    card.className = `building-item${canAfford ? '' : ' disabled'}`;
+    card.innerHTML = `
+            <div class="building-name">
+                <span>${building.name}</span>
+                <span class="building-count">${building.count}</span>
+            </div>
+            <div class="building-info">
+                <span class="building-production">+${building.production}/s</span>
+                <span class="building-cost">${formatNumber(building.cost)} cookies</span>
+            </div>
+        `;
+}
+
+function buyBuilding(building, options = {}) {
     if (gameState.cookies < building.cost) {
         return;
     }
+
+    const { renderBuildings = true, card = null } = options;
 
     gameState.cookies -= building.cost;
     building.count += 1;
@@ -615,7 +680,11 @@ function buyBuilding(building) {
         gameState.clickPower = 1 + building.count * 0.1;
     }
 
-    updateDisplay();
+    if (card && !renderBuildings) {
+        updateBuildingCard(card, building);
+    }
+
+    updateDisplay({ renderBuildings });
     saveGame();
 }
 

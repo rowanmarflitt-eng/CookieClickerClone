@@ -282,11 +282,12 @@ function renderUpgrades(loadMore = false) {
     for (let i = upgradesRenderIndex; i < end; i++) {
         const u = ALL_UPGRADES[i];
         const unlocked = gameState.upgradesUnlocked.includes(u.id);
-        const canBuy = gameState.cookies >= u.cost && !unlocked;
+        const canBuy = !unlocked && gameState.cookies >= u.cost;
         const card = document.createElement('div');
-        card.className = `upgrade-item${canBuy ? '' : ' disabled'}`;
-        card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><strong>${u.name}</strong><span>${formatNumber(u.cost)}</span></div><div style="font-size:0.85rem;color:#d4c3a8;margin-top:6px">${u.description}</div>`;
-        if (canBuy) card.addEventListener('click', () => buyUpgrade(u.id));
+        card.className = `upgrade-item${unlocked ? ' bought' : ''}${!canBuy ? ' disabled' : ''}`;
+        const displayCost = unlocked ? 'Purchased' : formatNumber(u.cost);
+        card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><strong>${u.name}</strong><span>${displayCost}</span></div><div style="font-size:0.85rem;color:#d4c3a8;margin-top:6px">${u.description}</div>`;
+        card.onclick = canBuy ? () => buyUpgrade(u.id) : null;
         DOM.upgradesContainer.appendChild(card);
     }
     upgradesRenderIndex = end;
@@ -294,6 +295,21 @@ function renderUpgrades(loadMore = false) {
     if (DOM.loadMoreUpgrades) {
         DOM.loadMoreUpgrades.style.display = upgradesRenderIndex >= ALL_UPGRADES.length ? 'none' : '';
     }
+}
+
+function refreshUpgradesDisplay() {
+    if (!DOM.upgradesContainer) return;
+    const cards = Array.from(DOM.upgradesContainer.children);
+    cards.forEach((card, index) => {
+        const u = ALL_UPGRADES[index];
+        if (!u) return;
+        const unlocked = gameState.upgradesUnlocked.includes(u.id);
+        const canBuy = !unlocked && gameState.cookies >= u.cost;
+        card.className = `upgrade-item${unlocked ? ' bought' : ''}${!canBuy ? ' disabled' : ''}`;
+        const displayCost = unlocked ? 'Purchased' : formatNumber(u.cost);
+        card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><strong>${u.name}</strong><span>${displayCost}</span></div><div style="font-size:0.85rem;color:#d4c3a8;margin-top:6px">${u.description}</div>`;
+        card.onclick = canBuy ? () => buyUpgrade(u.id) : null;
+    });
 }
 
 function buyUpgrade(id) {
@@ -307,6 +323,7 @@ function buyUpgrade(id) {
     gameState.buildings.forEach(b => b.production *= u.effect);
     gameState.clickPower *= u.effect;
     updateDisplay();
+    refreshUpgradesDisplay();
     saveGame();
 }
 
@@ -335,6 +352,7 @@ function buyAllUpgrades() {
         setAdminStatus(`Purchased ${purchased} upgrade${purchased > 1 ? 's' : ''}.`);
         showNotification(`Bought ${purchased} upgrade${purchased > 1 ? 's' : ''}!`);
         updateDisplay();
+        refreshUpgradesDisplay();
         saveGame();
     }
 }
@@ -701,6 +719,7 @@ function updateDisplay() {
     if (arguments[0] === undefined || arguments[0].renderBuildings !== false) {
         renderBuildings();
     }
+    refreshUpgradesDisplay();
 }
 
 function formatNumber(value) {

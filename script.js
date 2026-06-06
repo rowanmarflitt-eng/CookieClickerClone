@@ -258,6 +258,10 @@ function init() {
     if (DOM.adminResetBtn) {
         DOM.adminResetBtn.addEventListener('click', () => runAdminCommand('reset'));
     }
+    DOM.adminDeleteAccountsBtn = document.getElementById('adminDeleteAccountsBtn');
+    if (DOM.adminDeleteAccountsBtn) {
+        DOM.adminDeleteAccountsBtn.addEventListener('click', handleDeleteAllAccounts);
+    }
 
     DOM.usernameInput = document.getElementById('usernameInput');
     DOM.loginBtn = document.getElementById('loginBtn');
@@ -927,6 +931,18 @@ function handleLogout() {
     clearCurrentUser();
     updateUsernameDisplay();
     setAdminStatus('Logged out.');
+    if (pageType === 'game') {
+        window.location.href = 'login.html';
+    }
+}
+
+function handleDeleteAllAccounts() {
+    if (!window.confirm('Delete all accounts and logout? This cannot be undone.')) return;
+    resetAccounts();
+    saveGame();
+    updateUsernameDisplay();
+    setAdminStatus('All accounts deleted.');
+    showNotification('All accounts deleted.');
     if (pageType === 'game') {
         window.location.href = 'login.html';
     }

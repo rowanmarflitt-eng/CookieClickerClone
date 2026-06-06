@@ -585,7 +585,7 @@ function adminAddBuilding() {
 }
 
 function exportSaveData() {
-    const saveData = localStorage.getItem('cookieClickerSave');
+    const saveData = getStoredItem('cookieClickerSave');
     if (!saveData) {
         setAdminStatus('No save data available to export.');
         return;
@@ -611,7 +611,7 @@ function importSaveData() {
     }
     try {
         JSON.parse(saveString);
-        localStorage.setItem('cookieClickerSave', saveString);
+        setStoredItem('cookieClickerSave', saveString);
         loadGame();
         updateDisplay();
         setAdminStatus('Save imported successfully.');
@@ -646,7 +646,7 @@ function executeAdminCommand(command) {
         return 'Game reset complete.';
     }
 
-    if (command === 'reset accounts') {
+    if (command === 'reset accounts' || command === 'delete all accounts') {
         resetAccounts();
         return 'All accounts have been reset.';
     }
@@ -706,7 +706,7 @@ function executeAdminCommand(command) {
 }
 
 function resetAccounts() {
-    localStorage.removeItem('cookieClickerAccounts');
+    removeStoredItem('cookieClickerAccounts');
     clearCurrentUser();
 }
 
@@ -730,11 +730,71 @@ function resetGame() {
         building.count = 0;
         building.cost = building.baseCost;
     });
-    localStorage.removeItem('cookieClickerSave');
+    removeStoredItem('cookieClickerSave');
+}
+
+const SHARED_STORAGE_PREFIX = '__cookieClickerShared|';
+
+function getSharedStorage() {
+    const raw = window.name || '';
+    if (!raw.startsWith(SHARED_STORAGE_PREFIX)) return {};
+    try {
+        return JSON.parse(raw.slice(SHARED_STORAGE_PREFIX.length)) || {};
+    } catch {
+        return {};
+    }
+}
+
+function setSharedStorage(data) {
+    try {
+        window.name = `${SHARED_STORAGE_PREFIX}${JSON.stringify(data)}`;
+    } catch {
+        // ignore serialization failures
+    }
+}
+
+function getStoredItem(key) {
+    let value = null;
+    try {
+        value = localStorage.getItem(key);
+    } catch {
+        value = null;
+    }
+    if (value === null) {
+        const shared = getSharedStorage();
+        if (Object.prototype.hasOwnProperty.call(shared, key)) {
+            value = shared[key];
+        }
+    }
+    return value;
+}
+
+function setStoredItem(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch {
+        // ignore storage exceptions on file:// or blocked environments
+    }
+    const shared = getSharedStorage();
+    shared[key] = value;
+    setSharedStorage(shared);
+}
+
+function removeStoredItem(key) {
+    try {
+        localStorage.removeItem(key);
+    } catch {
+        // ignore storage exceptions
+    }
+    const shared = getSharedStorage();
+    if (Object.prototype.hasOwnProperty.call(shared, key)) {
+        delete shared[key];
+        setSharedStorage(shared);
+    }
 }
 
 function getAccounts() {
-    const raw = localStorage.getItem('cookieClickerAccounts');
+    const raw = getStoredItem('cookieClickerAccounts');
     if (!raw) return [];
     try {
         const parsed = JSON.parse(raw);
@@ -764,7 +824,7 @@ function getAccounts() {
 }
 
 function saveAccounts(accounts) {
-    localStorage.setItem('cookieClickerAccounts', JSON.stringify(accounts));
+    setStoredItem('cookieClickerAccounts', JSON.stringify(accounts));
 }
 
 function findAccount(username) {
@@ -772,21 +832,38 @@ function findAccount(username) {
 }
 
 function getCurrentUser() {
-    return localStorage.getItem('cookieClickerUser') || sessionStorage.getItem('cookieClickerUser') || '';
+    const stored = getStoredItem('cookieClickerUser');
+    const session = sessionStorage.getItem('cookieClickerUser');
+    if (stored) return stored;
+    if (session) return session;
+    const shared = getSharedStorage();
+    return shared.cookieClickerUser || '';
 }
 
 function clearCurrentUser() {
-    localStorage.removeItem('cookieClickerUser');
-    sessionStorage.removeItem('cookieClickerUser');
+    removeStoredItem('cookieClickerUser');
+    try {
+        sessionStorage.removeItem('cookieClickerUser');
+    } catch {
+        // ignore sessionStorage issues
+    }
 }
 
 function setCurrentUser(username, remember = false) {
     if (remember) {
-        localStorage.setItem('cookieClickerUser', username);
-        sessionStorage.removeItem('cookieClickerUser');
+        setStoredItem('cookieClickerUser', username);
+        try {
+            sessionStorage.removeItem('cookieClickerUser');
+        } catch {
+            // ignore sessionStorage issues
+        }
     } else {
-        sessionStorage.setItem('cookieClickerUser', username);
-        localStorage.removeItem('cookieClickerUser');
+        try {
+            sessionStorage.setItem('cookieClickerUser', username);
+        } catch {
+            // ignore sessionStorage issues
+        }
+        setStoredItem('cookieClickerUser', username);
     }
     gameState.username = username;
 }
@@ -1021,11 +1098,11 @@ function saveGame() {
         username: gameState.username || getCurrentUser() || ''
     };
 
-    localStorage.setItem('cookieClickerSave', JSON.stringify(save));
+    setStoredItem('cookieClickerSave', JSON.stringify(save));
 }
 
 function loadGame() {
-    const saveData = localStorage.getItem('cookieClickerSave');
+    const saveData = getStoredItem('cookieClickerSave');
     if (!saveData) return;
 
     try {

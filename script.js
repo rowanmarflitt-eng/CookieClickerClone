@@ -95,7 +95,7 @@ const DOM = {
 };
 
 const AUTO_TICK_MS = 100;
-const SAVE_INTERVAL_MS = 2000;
+const SAVE_INTERVAL_MS = 15000;
 const CLICK_ANIMATION_MS = 80;
 const UPGRADES_PAGE_SIZE = 50;
 const ACHIEVEMENTS_PAGE_SIZE = 50;
@@ -922,9 +922,9 @@ function handleCreateAccount() {
 }
 
 function handleLogout() {
+    saveGame();
     gameState.username = '';
     clearCurrentUser();
-    saveGame();
     updateUsernameDisplay();
     setAdminStatus('Logged out.');
     if (pageType === 'game') {
@@ -1142,5 +1142,8 @@ function loadGame() {
         console.warn('Failed to load saved game:', error);
     }
 }
+
+window.addEventListener('beforeunload', saveGame);
+window.addEventListener('pagehide', saveGame);
 
 document.addEventListener('DOMContentLoaded', init);

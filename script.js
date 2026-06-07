@@ -389,12 +389,13 @@ function renderUpgrades(loadMore = false) {
         const u = ALL_UPGRADES[i];
         const unlocked = gameState.upgradesUnlocked.includes(u.id);
         const canBuy = !unlocked && gameState.cookies >= u.cost;
+        const displayCost = unlocked ? 'Purchased' : formatNumber(u.cost);
         const card = document.createElement('div');
-        card.className = `upgrade-item${canBuy ? '' : ' disabled'}`;
-        card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><strong>${u.name}</strong><span>${formatNumber(u.cost)}</span></div><div style="font-size:0.85rem;color:#d4c3a8;margin-top:6px">${u.description}</div>`;
+        card.className = `upgrade-item${unlocked ? ' bought' : ''}${canBuy ? '' : ' disabled'}`;
+        card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><strong>${u.name}</strong><span class="upgrade-status">${displayCost}</span></div><div style="font-size:0.85rem;color:#d4c3a8;margin-top:6px">${u.description}</div>`;
         // Always attach a click handler so clicks work even if affordability changes
         card.addEventListener('click', () => {
-            if (gameState.upgradesUnlocked.includes(u.id)) return;
+            if (unlocked) return;
             if (gameState.cookies >= u.cost) {
                 buyUpgrade(u.id);
             } else {
@@ -419,9 +420,9 @@ function refreshUpgradesDisplay() {
         if (!u) return;
         const unlocked = gameState.upgradesUnlocked.includes(u.id);
         const canBuy = !unlocked && gameState.cookies >= u.cost;
-        card.className = `upgrade-item${unlocked ? ' bought' : ''}${!canBuy ? ' disabled' : ''}`;
         const displayCost = unlocked ? 'Purchased' : formatNumber(u.cost);
-        card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><strong>${u.name}</strong><span>${displayCost}</span></div><div style="font-size:0.85rem;color:#d4c3a8;margin-top:6px">${u.description}</div>`;
+        card.className = `upgrade-item${unlocked ? ' bought' : ''}${canBuy ? '' : ' disabled'}`;
+        card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><strong>${u.name}</strong><span class="upgrade-status">${displayCost}</span></div><div style="font-size:0.85rem;color:#d4c3a8;margin-top:6px">${u.description}</div>`;
         card.onclick = canBuy ? () => buyUpgrade(u.id) : null;
     });
 }
@@ -512,18 +513,34 @@ function renderAchievements(loadMore = false) {
     }
 }
 
+function refreshAchievementsDisplay() {
+    if (!DOM.achievementsContainer) return;
+    const cards = Array.from(DOM.achievementsContainer.children);
+    cards.forEach((card, index) => {
+        const a = ALL_ACHIEVEMENTS[index];
+        if (!a) return;
+        const unlocked = gameState.achievementsUnlocked.includes(a.id);
+        card.className = `achievement-item${unlocked ? ' unlocked' : ''}`;
+        card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><strong>${a.name}</strong>${unlocked ? '<span class="achievement-badge">Unlocked</span>' : ''}</div><div style="font-size:0.85rem;color:#d4c3a8;margin-top:6px">${a.description}</div>`;
+    });
+    if (DOM.achCount) DOM.achCount.textContent = gameState.achievementsUnlocked.length;
+    if (DOM.loadMoreAchievements) {
+        DOM.loadMoreAchievements.style.display = achievementsRenderIndex >= ALL_ACHIEVEMENTS.length ? 'none' : '';
+    }
+}
+
 function checkAchievements() {
     const cookiesTotal = Math.floor(gameState.cookies + gameState.buildings.reduce((s,b) => s + b.count * b.baseCost,0));
     // simple: check by total cookies (could be extended)
     ALL_ACHIEVEMENTS.forEach(a => {
-        if (!gameState.achievementsUnlocked.includes(a.id) && gameState.cookies >= a.threshold) {
+        if (!gameState.achievementsUnlocked.includes(a.id) && cookiesTotal >= a.threshold) {
             gameState.achievementsUnlocked.push(a.id);
             setAdminStatus(`Achievement unlocked: ${a.name}`);
             showNotification(`Achievement unlocked: ${a.name}`);
         }
     });
-    // refresh first page so unlocked badges appear
-    if (DOM.achievementsContainer) renderAchievements(false);
+    // refresh current page so unlocked badges appear without collapsing loaded pages
+    if (DOM.achievementsContainer) refreshAchievementsDisplay();
 }
 
 function showNotification(text, timeout = 3000) {
@@ -1005,7 +1022,7 @@ function renderBuildings() {
                 <span class="building-count">${building.count}</span>
             </div>
             <div class="building-info">
-                <span class="building-production">+${building.production}/s</span>
+                <span class="building-production">+${formatNumber(building.production, 3)}/s</span>
                 <span class="building-cost">${formatNumber(building.cost)} cookies</span>
             </div>
         `;
@@ -1037,7 +1054,7 @@ function updateBuildingCard(card, building) {
                 <span class="building-count">${building.count}</span>
             </div>
             <div class="building-info">
-                <span class="building-production">+${building.production}/s</span>
+                <span class="building-production">+${formatNumber(building.production, 3)}/s</span>
                 <span class="building-cost">${formatNumber(building.cost)} cookies</span>
             </div>
         `;
@@ -1080,27 +1097,33 @@ function updateDisplay(options) {
     if (opts.renderBuildings !== false) {
         renderBuildings();
     }
-    // re-render upgrades so visual affordance matches current cookies
+    // refresh upgrades affordance without resetting loaded pages
     if (opts.renderUpgrades !== false) {
-        renderUpgrades();
+        refreshUpgradesDisplay();
+    }
+    if (opts.renderAchievements !== false) {
+        refreshAchievementsDisplay();
     }
 }
 
-function formatNumber(value) {
+function formatNumber(value, precision = 2) {
     const number = Number(value);
+    if (Number.isNaN(number)) return '0';
 
-    if (number >= 1e30) return `${(number / 1e30).toFixed(2)}Q`;
-    if (number >= 1e27) return `${(number / 1e27).toFixed(2)}R`;
-    if (number >= 1e24) return `${(number / 1e24).toFixed(2)}Y`;
-    if (number >= 1e21) return `${(number / 1e21).toFixed(2)}Z`;
-    if (number >= 1e18) return `${(number / 1e18).toFixed(2)}E`;
-    if (number >= 1e15) return `${(number / 1e15).toFixed(2)}P`;
-    if (number >= 1e12) return `${(number / 1e12).toFixed(2)}T`;
-    if (number >= 1e9) return `${(number / 1e9).toFixed(2)}B`;
-    if (number >= 1e6) return `${(number / 1e6).toFixed(2)}M`;
-    if (number >= 1e3) return `${(number / 1e3).toFixed(2)}K`;
+    const format = num => num.toFixed(precision).replace(/\.0+$|(?<=\.[0-9]*[1-9])0+$/g, '');
 
-    return number.toString();
+    if (number >= 1e30) return `${format(number / 1e30)}Q`;
+    if (number >= 1e27) return `${format(number / 1e27)}R`;
+    if (number >= 1e24) return `${format(number / 1e24)}Y`;
+    if (number >= 1e21) return `${format(number / 1e21)}Z`;
+    if (number >= 1e18) return `${format(number / 1e18)}E`;
+    if (number >= 1e15) return `${format(number / 1e15)}P`;
+    if (number >= 1e12) return `${format(number / 1e12)}T`;
+    if (number >= 1e9) return `${format(number / 1e9)}B`;
+    if (number >= 1e6) return `${format(number / 1e6)}M`;
+    if (number >= 1e3) return `${format(number / 1e3)}K`;
+
+    return format(number);
 }
 
 function saveGame() {
